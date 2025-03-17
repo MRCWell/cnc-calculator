@@ -1,91 +1,63 @@
 import streamlit as st
 import pandas as pd
+import fitz  # PyMuPDF
 
-# IRS National and Local Standards for allowable living expenses (example values, should be updated with latest IRS data)
-IRS_NATIONAL_STANDARDS = {
-    "food": 800,  # Example value
-    "housing": 1500,  # Example value
-    "transportation": 500,  # Example value
-    "healthcare": 300,  # Example value
-    "misc": 200  # Example value
-}
+def extract_text_from_pdf(pdf_path):
+    """Extract text from a given PDF file."""
+    text = ""
+    with fitz.open(pdf_path) as doc:
+        for page in doc:
+            text += page.get_text("text") + "\n"
+    return text
 
-# Local housing and utilities standards (example values)
-LOCAL_HOUSING_UTILITIES = {
-    "Midwest": 1800,
-    "West": 2200,
-    "South": 1600,
-    "Northeast": 2500
-}
+def parse_standard_values(text, keyword):
+    """Extract numerical values based on specific keywords from extracted text."""
+    lines = text.split("\n")
+    for line in lines:
+        if keyword in line:
+            values = [float(x) for x in line.split() if x.replace('.', '').isdigit()]
+            return values
+    return []
 
-def get_local_standard(region, household_size):
-    base_standard = LOCAL_HOUSING_UTILITIES.get(region, 0)
-    return base_standard + (household_size - 1) * 200  # Example adjustment per additional household member
-
-def calculate_cnc_eligibility(income, expenses, irs_debt, region, household_size):
-    # Apply IRS national standards for allowable living expenses
-    allowable_expenses = sum(IRS_NATIONAL_STANDARDS.values()) + get_local_standard(region, household_size)
+def main():
+    st.title("IRS Form 433-F Qualification Calculator")
     
-    # Ensure expenses do not exceed national/local standards
-    total_expenses = min(expenses, allowable_expenses)
+    housing_text = extract_text_from_pdf("/mnt/data/all-states-housing-standards.pdf")
+    transportation_text = extract_text_from_pdf("/mnt/data/transportation-standards.pdf")
+    healthcare_text = extract_text_from_pdf("/mnt/data/out-of-pocket-health-care.pdf")
+    national_text = extract_text_from_pdf("/mnt/data/national-standards.pdf")
     
-    # Calculate disposable income
-    disposable_income = income - total_expenses
+    household_size = st.number_input("Household size:", min_value=1, step=1)
+    state = st.text_input("State:")
+    county = st.text_input("County:")
+    region = st.selectbox("Region:", ["Northeast", "Midwest", "South", "West"])
+    age = st.number_input("Age:", min_value=18, step=1)
+    monthly_income = st.number_input("Total monthly income:", min_value=0.0, step=100.0)
+    tax_debt = st.number_input("Total tax debt:", min_value=0.0, step=100.0)
     
-    # Calculate IRS monthly payment threshold
-    irs_monthly_payment = irs_debt / 72
+    real_estate_expense = st.number_input("Real estate expense (rent/mortgage):", min_value=0.0, step=50.0)
+    utilities = st.number_input("Utilities (electricity, water, internet, etc.):", min_value=0.0, step=50.0)
+    credit_card_payment = st.number_input("Credit card minimum payments:", min_value=0.0, step=10.0)
+    child_care = st.number_input("Child/dependent care expense:", min_value=0.0, step=50.0)
+    student_loans = st.number_input("Student loan payments:", min_value=0.0, step=50.0)
+    insurance = st.number_input("Health and life insurance expense:", min_value=0.0, step=50.0)
+    transportation = st.number_input("Actual transportation expense:", min_value=0.0, step=50.0)
     
-    # Determine CNC eligibility and explanation
-    if disposable_income < irs_monthly_payment:
-        if disposable_income > 0:
-            result = (f"Your disposable income (${disposable_income:.2f}) is less than the IRS monthly payment threshold (${irs_monthly_payment:.2f}).\n\n"
-                      "You may qualify for a lower monthly payment equal to your disposable income.\n\n"
-                      "Complete Form 433-F and call the IRS to discuss a reduced payment option.")
-        else:
-            result = (f"Your disposable income (${disposable_income:.2f}) is zero or negative.\n\n"
-                      "You are eligible for Currently Not Collectible (CNC) status.\n\n"
-                      "Complete Form 433-F and call the IRS to request CNC status.")
-    else:
-        result = (f"Your disposable income (${disposable_income:.2f}) is more than the IRS required payment (${irs_monthly_payment:.2f}).\n\n"
-                  f"You must pay at least ${max(disposable_income, irs_monthly_payment):.2f} monthly to the IRS.")
-    
-    return {
-        "Total Income": f"${income:.2f}",
-        "Total Allowable Expenses": f"${total_expenses:.2f}",
-        "Disposable Income": f"${disposable_income:.2f}",
-        "IRS Monthly Payment Threshold": f"${irs_monthly_payment:.2f}",
-        "Result": result
-    }
+    if st.button("Calculate Eligibility"):
+        housing_exp = parse_standard_values(housing_text, state)
+        transport_exp = parse_standard_values(transportation_text, region)
+        healthcare_exp = parse_standard_values(healthcare_text, "Under 65" if age < 65 else "65 and Older")
+        national_standard = parse_standard_values(national_text, str(household_size))
+        
+        total_expenses = (sum(housing_exp) + sum(transport_exp) + sum(healthcare_exp) + sum(national_standard) +
+                          real_estate_expense + utilities + credit_card_payment +
+                          child_care + student_loans + insurance + transportation)
+        
+        disposable_income = monthly_income - total_expenses
+        eligibility = "CNC Eligible" if disposable_income <= 0 else ("Online Installment Agreement" if tax_debt < 50000 else "Full Installment Agreement")
+        
+        st.write(f"### Disposable Income: ${disposable_income:.2f}")
+        st.write(f"### IRS Eligibility: {eligibility}")
 
-# Streamlit UI
-st.title("IRS CNC Eligibility Calculator")
-
-st.header("Income Information")
-employment_income = st.number_input("Enter monthly wages/salary:", min_value=0.0, format="%.2f")
-self_employment_income = st.number_input("Enter monthly self-employment income:", min_value=0.0, format="%.2f")
-investment_income = st.number_input("Enter monthly investment income:", min_value=0.0, format="%.2f")
-social_security = st.number_input("Enter monthly Social Security income:", min_value=0.0, format="%.2f")
-other_income = st.number_input("Enter any other monthly income:", min_value=0.0, format="%.2f")
-
-total_income = employment_income + self_employment_income + investment_income + social_security + other_income
-
-st.header("Expense Information")
-rent_mortgage = st.number_input("Enter monthly rent/mortgage payment:", min_value=0.0, format="%.2f")
-utility_bills = st.number_input("Enter monthly utilities (electric, gas, water, etc.):", min_value=0.0, format="%.2f")
-transportation = st.number_input("Enter monthly transportation cost:", min_value=0.0, format="%.2f")
-groceries = st.number_input("Enter monthly grocery and food expenses:", min_value=0.0, format="%.2f")
-medical = st.number_input("Enter monthly medical expenses:", min_value=0.0, format="%.2f")
-other_expenses = st.number_input("Enter any other monthly necessary expenses:", min_value=0.0, format="%.2f")
-
-total_expenses = rent_mortgage + utility_bills + transportation + groceries + medical + other_expenses
-
-st.header("Household Information")
-household_size = st.number_input("Enter the number of people in your household:", min_value=1, step=1)
-
-irs_debt = st.number_input("Enter your total IRS debt:", min_value=0.0, format="%.2f")
-region = st.selectbox("Select your region:", ["Midwest", "West", "South", "Northeast"])
-
-if st.button("Calculate Eligibility"):
-    result = calculate_cnc_eligibility(total_income, total_expenses, irs_debt, region, household_size)
-    df = pd.DataFrame([result])
-    st.write(result["Result"])
+if __name__ == "__main__":
+    main()
