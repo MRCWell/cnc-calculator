@@ -18,12 +18,13 @@ LOCAL_HOUSING_UTILITIES = {
     "Northeast": 2500
 }
 
-def get_local_standard(region):
-    return LOCAL_HOUSING_UTILITIES.get(region, 0)
+def get_local_standard(region, household_size):
+    base_standard = LOCAL_HOUSING_UTILITIES.get(region, 0)
+    return base_standard + (household_size - 1) * 200  # Example adjustment per additional household member
 
-def calculate_cnc_eligibility(income, expenses, irs_debt, region):
+def calculate_cnc_eligibility(income, expenses, irs_debt, region, household_size):
     # Apply IRS national standards for allowable living expenses
-    allowable_expenses = sum(IRS_NATIONAL_STANDARDS.values()) + get_local_standard(region)
+    allowable_expenses = sum(IRS_NATIONAL_STANDARDS.values()) + get_local_standard(region, household_size)
     
     # Ensure expenses do not exceed national/local standards
     total_expenses = min(expenses, allowable_expenses)
@@ -34,11 +35,19 @@ def calculate_cnc_eligibility(income, expenses, irs_debt, region):
     # Calculate IRS monthly payment threshold
     irs_monthly_payment = irs_debt / 72
     
-    # Determine CNC eligibility
+    # Determine CNC eligibility and explanation
     if disposable_income < irs_monthly_payment:
-        result = "Eligible for Currently Not Collectible (CNC) status. Complete Form 433-F and call the IRS."
+        if disposable_income > 0:
+            result = (f"Your disposable income (${disposable_income:.2f}) is less than the IRS monthly payment threshold (${irs_monthly_payment:.2f}).\n"
+                      "You may qualify for a lower monthly payment equal to your disposable income.\n"
+                      "Complete Form 433-F and call the IRS to discuss a reduced payment option.")
+        else:
+            result = (f"Your disposable income (${disposable_income:.2f}) is zero or negative.\n"
+                      "You are eligible for Currently Not Collectible (CNC) status.\n"
+                      "Complete Form 433-F and call the IRS to request CNC status.")
     else:
-        result = f"Must pay ${max(disposable_income, irs_monthly_payment):.2f} monthly to the IRS."
+        result = (f"Your disposable income (${disposable_income:.2f}) is more than the IRS required payment (${irs_monthly_payment:.2f}).\n"
+                  f"You must pay at least ${max(disposable_income, irs_monthly_payment):.2f} monthly to the IRS.")
     
     return {
         "Total Income": f"${income:.2f}",
@@ -70,10 +79,13 @@ other_expenses = st.number_input("Enter any other monthly necessary expenses:", 
 
 total_expenses = rent_mortgage + utility_bills + transportation + groceries + medical + other_expenses
 
+st.header("Household Information")
+household_size = st.number_input("Enter the number of people in your household:", min_value=1, step=1)
+
 irs_debt = st.number_input("Enter your total IRS debt:", min_value=0.0, format="%.2f")
 region = st.selectbox("Select your region:", ["Midwest", "West", "South", "Northeast"])
 
 if st.button("Calculate Eligibility"):
-    result = calculate_cnc_eligibility(total_income, total_expenses, irs_debt, region)
+    result = calculate_cnc_eligibility(total_income, total_expenses, irs_debt, region, household_size)
     df = pd.DataFrame([result])
     st.dataframe(df)
