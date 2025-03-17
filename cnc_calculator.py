@@ -51,12 +51,29 @@ def calculate_cnc_eligibility(income, expenses, irs_debt, region):
 # Streamlit UI
 st.title("IRS CNC Eligibility Calculator")
 
-income = st.number_input("Enter your total monthly income:", min_value=0.0, format="%.2f")
-expenses = st.number_input("Enter your total monthly expenses:", min_value=0.0, format="%.2f")
+st.header("Income Information")
+employment_income = st.number_input("Enter monthly wages/salary:", min_value=0.0, format="%.2f")
+self_employment_income = st.number_input("Enter monthly self-employment income:", min_value=0.0, format="%.2f")
+investment_income = st.number_input("Enter monthly investment income:", min_value=0.0, format="%.2f")
+social_security = st.number_input("Enter monthly Social Security income:", min_value=0.0, format="%.2f")
+other_income = st.number_input("Enter any other monthly income:", min_value=0.0, format="%.2f")
+
+total_income = employment_income + self_employment_income + investment_income + social_security + other_income
+
+st.header("Expense Information")
+rent_mortgage = st.number_input("Enter monthly rent/mortgage payment:", min_value=0.0, format="%.2f")
+utility_bills = st.number_input("Enter monthly utilities (electric, gas, water, etc.):", min_value=0.0, format="%.2f")
+transportation = st.number_input("Enter monthly transportation cost:", min_value=0.0, format="%.2f")
+groceries = st.number_input("Enter monthly grocery and food expenses:", min_value=0.0, format="%.2f")
+medical = st.number_input("Enter monthly medical expenses:", min_value=0.0, format="%.2f")
+other_expenses = st.number_input("Enter any other monthly necessary expenses:", min_value=0.0, format="%.2f")
+
+total_expenses = rent_mortgage + utility_bills + transportation + groceries + medical + other_expenses
+
 irs_debt = st.number_input("Enter your total IRS debt:", min_value=0.0, format="%.2f")
 region = st.selectbox("Select your region:", ["Midwest", "West", "South", "Northeast"])
 
 if st.button("Calculate Eligibility"):
-    result = calculate_cnc_eligibility(income, expenses, irs_debt, region)
+    result = calculate_cnc_eligibility(total_income, total_expenses, irs_debt, region)
     df = pd.DataFrame([result])
     st.dataframe(df)
