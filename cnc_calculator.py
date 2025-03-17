@@ -38,15 +38,15 @@ def calculate_cnc_eligibility(income, expenses, irs_debt, region, household_size
     # Determine CNC eligibility and explanation
     if disposable_income < irs_monthly_payment:
         if disposable_income > 0:
-            result = (f"Your disposable income (${disposable_income:.2f}) is less than the IRS monthly payment threshold (${irs_monthly_payment:.2f}).\n"
-                      "You may qualify for a lower monthly payment equal to your disposable income.\n"
+            result = (f"Your disposable income (${disposable_income:.2f}) is less than the IRS monthly payment threshold (${irs_monthly_payment:.2f}).\n\n"
+                      "You may qualify for a lower monthly payment equal to your disposable income.\n\n"
                       "Complete Form 433-F and call the IRS to discuss a reduced payment option.")
         else:
-            result = (f"Your disposable income (${disposable_income:.2f}) is zero or negative.\n"
-                      "You are eligible for Currently Not Collectible (CNC) status.\n"
+            result = (f"Your disposable income (${disposable_income:.2f}) is zero or negative.\n\n"
+                      "You are eligible for Currently Not Collectible (CNC) status.\n\n"
                       "Complete Form 433-F and call the IRS to request CNC status.")
     else:
-        result = (f"Your disposable income (${disposable_income:.2f}) is more than the IRS required payment (${irs_monthly_payment:.2f}).\n"
+        result = (f"Your disposable income (${disposable_income:.2f}) is more than the IRS required payment (${irs_monthly_payment:.2f}).\n\n"
                   f"You must pay at least ${max(disposable_income, irs_monthly_payment):.2f} monthly to the IRS.")
     
     return {
@@ -88,4 +88,4 @@ region = st.selectbox("Select your region:", ["Midwest", "West", "South", "North
 if st.button("Calculate Eligibility"):
     result = calculate_cnc_eligibility(total_income, total_expenses, irs_debt, region, household_size)
     df = pd.DataFrame([result])
-    st.dataframe(df)
+    st.write(result["Result"])
